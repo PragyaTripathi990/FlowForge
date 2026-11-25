@@ -1,24 +1,27 @@
-// components/ProtectedRoute.jsx
-import { useQuery } from '@tanstack/react-query';
-import { getCurrentUser } from '../api/auth';
-import { Navigate } from 'react-router-dom';
+import { useQuery } from "@tanstack/react-query";
+import { Navigate } from "react-router-dom";
+import { getCurrentUser } from "../api/auth";
+import { LogoMark } from "./Logo";
 
 export default function ProtectedRoute({ children }) {
-  const { data: user, isLoading, error } = useQuery({
-    queryKey: ['currentUser'],
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["currentUser"],
     queryFn: getCurrentUser,
     retry: false,
   });
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-teal-950 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="forge-backdrop grid min-h-screen place-items-center">
+        <div className="flex animate-pulse items-center gap-3 text-sand-400">
+          <LogoMark size={24} />
+          <span className="text-sm">Loading your workspace…</span>
+        </div>
       </div>
     );
   }
 
-  if (error || !user) {
+  if (error || !data?.user) {
     return <Navigate to="/login" replace />;
   }
 

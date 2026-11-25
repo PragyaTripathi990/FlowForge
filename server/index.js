@@ -11,8 +11,14 @@ import cookieParser from "cookie-parser";
 
 const app = express()
 
+// CLIENT_ORIGIN is a comma-separated list of frontend URLs allowed to call the API.
+const allowedOrigins = [
+  'http://localhost:5173',
+  ...(process.env.CLIENT_ORIGIN || '').split(',').map((o) => o.trim()).filter(Boolean),
+]
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'https://prompt-chain-eight.vercel.app'],
+  origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

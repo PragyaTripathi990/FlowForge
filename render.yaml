@@ -1,0 +1,37 @@
+# Render blueprint: API + Postgres + Redis-compatible cache.
+# The frontend (client/) deploys separately as a static site, with
+# VITE_API_URL set to this API's URL followed by /api.
+services:
+  - type: web
+    name: flowforge-api
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install && npx prisma generate
+    startCommand: npx prisma migrate deploy && node index.js
+    healthCheckPath: /
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flowforge-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: flowforge-cache
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CLIENT_ORIGIN
+        sync: false
+
+  - type: keyvalue
+    name: flowforge-cache
+    plan: free
+    ipAllowList: []
+
+databases:
+  - name: flowforge-db
+    plan: free

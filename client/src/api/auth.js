@@ -10,6 +10,11 @@ export const login = async (credentials) => {
   return res.data;
 };
 
+export const logout = async () => {
+  const res = await api.post('/auth/logout', {}, { withCredentials: true });
+  return res.data;
+};
+
 export const getCurrentUser = async () => {
   const res = await api.get('/auth/me', { withCredentials: true });
   return res.data;

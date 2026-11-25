@@ -1,22 +1,54 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { v4 as uuidv4 } from "uuid";
-import { createChain } from "../api/chains";
 import toast from "react-hot-toast";
-import React from "react";
+import { createChain } from "../api/chains";
+import AppShell from "../components/AppShell";
+import { ArrowLeftIcon, PlusIcon, SpinnerIcon, TrashIcon } from "../components/Icons";
+import { NODE_TYPES } from "../lib/nodeTypes";
+
+const NODE_SPACING = 280;
+
+function Section({ step, title, hint, children }) {
+  return (
+    <section className="card p-6">
+      <div className="flex items-start gap-3">
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ember-500/15 font-mono text-xs font-medium text-ember-300">
+          {step}
+        </span>
+        <div>
+          <h2 className="font-display text-lg font-semibold tracking-tight">{title}</h2>
+          <p className="mt-0.5 text-sm text-sand-400">{hint}</p>
+        </div>
+      </div>
+      <div className="mt-5">{children}</div>
+    </section>
+  );
+}
+
+function PreviewStep({ type, title, last }) {
+  const meta = NODE_TYPES[type];
+  return (
+    <li className="relative flex gap-3 pb-4 last:pb-0">
+      {!last && <span className="absolute left-[5px] top-4 h-full w-px bg-ink-600" />}
+      <span className="relative mt-1 h-[11px] w-[11px] shrink-0 rounded-full" style={{ background: meta.color }} />
+      <div className="min-w-0">
+        <p className="font-mono text-[0.65rem] uppercase tracking-widest" style={{ color: meta.color }}>
+          {meta.label}
+        </p>
+        <p className="truncate text-sm text-sand-200">{title}</p>
+      </div>
+    </li>
+  );
+}
 
 export default function NewChain() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-
   const [inputVariable, setInputVariable] = useState("topic");
   const [questions, setQuestions] = useState([{ id: uuidv4(), text: "" }]);
-
-  const [outputFormat, setOutputFormat] = useState(
-    "Summary:\n\n{{previousContext}}"
-  );
-
+  const [outputFormat, setOutputFormat] = useState("Summary:\n\n{{previousContext}}");
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -31,7 +63,7 @@ export default function NewChain() {
         id: inputNodeId,
         type: "input",
         text: `{{${inputVariable}}}`,
-        position: { x: 100, y: 100 },
+        position: { x: 0, y: 100 },
       });
 
       let previousNodeId = inputNodeId;
@@ -41,14 +73,9 @@ export default function NewChain() {
           id: questionNodeId,
           type: "llm",
           text: question.text,
-          position: { x: 300 + index * 200, y: 100 },
+          position: { x: NODE_SPACING * (index + 1), y: 100 },
         });
-
-        edges.push({
-          source: previousNodeId,
-          target: questionNodeId,
-        });
-
+        edges.push({ source: previousNodeId, target: questionNodeId });
         previousNodeId = questionNodeId;
       });
 
@@ -57,251 +84,183 @@ export default function NewChain() {
         id: outputNodeId,
         type: "output",
         text: outputFormat,
-        position: { x: 300 + questions.length * 200, y: 100 },
+        position: { x: NODE_SPACING * (questions.length + 1), y: 100 },
       });
+      edges.push({ source: previousNodeId, target: outputNodeId });
 
-      edges.push({
-        source: previousNodeId,
-        target: outputNodeId,
-      });
-
-      return createChain({
-        title,
-        description,
-        nodes,
-        edges,
-        userId: "b1ab05e6-6e3f-45f1-81d8-322cf6e50397",
-      });
+      return createChain({ title, description, nodes, edges });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["chains"] });
-      toast.success("Chain created successfully!");
+      toast.success("Workflow created");
       navigate(`/chains/${data.id}`);
     },
-    onError: (err) => {
-      console.error("Error creating chain:", err);
-      toast.error("Failed to create chain.");
+    onError: () => {
+      toast.error("Failed to create the workflow");
     },
   });
 
-  const addQuestion = () => {
-    setQuestions([...questions, { id: uuidv4(), text: "" }]);
-  };
+  const addQuestion = () => setQuestions([...questions, { id: uuidv4(), text: "" }]);
 
-  const updateQuestion = (id, text) => {
+  const updateQuestion = (id, text) =>
     setQuestions(questions.map((q) => (q.id === id ? { ...q, text } : q)));
-  };
 
-  const deleteQuestion = (id) => {
-    if (questions.length <= 1) {
-      toast.error("At least one question is required");
-      return;
-    }
-    setQuestions(questions.filter((q) => q.id !== id));
-  };
+  const deleteQuestion = (id) => setQuestions(questions.filter((q) => q.id !== id));
 
   const handleSave = (e) => {
     e.preventDefault();
 
     const newErrors = {};
-    if (!title.trim()) newErrors.title = "Title is required.";
-    if (!inputVariable.trim())
-      newErrors.inputVariable = "Input variable name is required.";
-    if (questions.length === 0)
-      newErrors.questions = "At least one question is required.";
-    if (questions.some((q) => !q.text.trim()))
-      newErrors.questionText = "All questions must have text.";
-    if (!outputFormat.trim())
-      newErrors.outputFormat = "Output format is required.";
+    if (!title.trim()) newErrors.title = "Give the workflow a title.";
+    if (!inputVariable.trim()) newErrors.inputVariable = "Name the input variable.";
+    if (questions.some((q) => !q.text.trim())) newErrors.questionText = "Every prompt needs some text.";
+    if (!outputFormat.trim()) newErrors.outputFormat = "Describe the output format.";
 
     setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
-
+    if (Object.keys(newErrors).length > 0) {
+      toast.error("A few fields need attention");
+      return;
+    }
     saveChain();
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-teal-950 py-12 px-6">
-      <div className="max-w-3xl mx-auto p-8 bg-gray-900 shadow-2xl rounded-xl border border-gray-800">
-        <h2 className="text-4xl font-bold mb-8 text-white">Create New Chain</h2>
+    <AppShell>
+      <Link to="/chains" className="inline-flex items-center gap-1.5 text-sm text-sand-400 hover:text-sand-50">
+        <ArrowLeftIcon width={14} height={14} />
+        Workflows
+      </Link>
+      <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight">New workflow</h1>
+      <p className="mt-1.5 text-sand-400">
+        Set up a straight line of steps here. You can branch and rewire it on the canvas after it's created.
+      </p>
 
-        <div className="mb-6">
-          <label className="block mb-2 text-sm font-medium text-gray-300">
-            Chain Title *
-          </label>
-          <input
-            type="text"
-            placeholder="e.g., Blog Post Generator"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="border border-gray-700 bg-gray-800 text-white rounded-lg p-3 w-full focus:outline-none focus:border-gray-600 transition-colors"
-          />
-          {errors.title && (
-            <p className="text-red-400 text-sm mt-1">{errors.title}</p>
-          )}
-        </div>
+      <form onSubmit={handleSave} className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="space-y-5">
+          <section className="card space-y-5 p-6">
+            <div>
+              <label htmlFor="title" className="field-label">Title</label>
+              <input
+                id="title"
+                type="text"
+                placeholder="Blog post generator"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="field"
+                aria-invalid={!!errors.title}
+              />
+              {errors.title && <p className="mt-1.5 text-sm text-red-300">{errors.title}</p>}
+            </div>
+            <div>
+              <label htmlFor="description" className="field-label">
+                Description <span className="font-normal text-sand-500">(optional)</span>
+              </label>
+              <textarea
+                id="description"
+                placeholder="What does this workflow produce?"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className="field"
+              />
+            </div>
+          </section>
 
-        <div className="mb-8">
-          <label className="block mb-2 text-sm font-medium text-gray-300">
-            Description
-          </label>
-          <textarea
-            placeholder="Describe what this chain does..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="border border-gray-700 bg-gray-800 text-white rounded-lg p-3 w-full h-20 focus:outline-none focus:border-gray-600 transition-colors"
-          />
-        </div>
+          <Section step="1" title="Input variable" hint="The value you'll supply each time the workflow runs.">
+            <input
+              type="text"
+              aria-label="Input variable name"
+              placeholder="topic"
+              value={inputVariable}
+              onChange={(e) => setInputVariable(e.target.value.replace(/\W/g, "_"))}
+              className="field font-mono"
+            />
+            {errors.inputVariable && <p className="mt-1.5 text-sm text-red-300">{errors.inputVariable}</p>}
+            <p className="mt-3 text-xs text-sand-500">
+              Use it in any prompt as{" "}
+              <code className="rounded bg-ink-800 px-1.5 py-0.5 font-mono text-ember-300">{`{{${inputVariable || "name"}}}`}</code>
+            </p>
+          </Section>
 
-        <div className="mb-8 p-6 bg-gray-800 border border-gray-700 rounded-xl">
-          <h3 className="text-xl font-semibold mb-4 text-white flex items-center gap-2">
-            <span className="bg-gray-700 text-white w-7 h-7 rounded-full flex items-center justify-center text-sm">
-              1
-            </span>
-            Input Variable
-          </h3>
-          <p className="text-sm text-gray-400 mb-4">
-            What input will the user provide? (e.g., "topic", "keyword",
-            "product")
-          </p>
-          <input
-            type="text"
-            placeholder="Variable name (e.g., topic)"
-            value={inputVariable}
-            onChange={(e) =>
-              setInputVariable(e.target.value.replace(/\s/g, "_"))
-            }
-            className="border border-gray-700 bg-gray-900 text-white rounded-lg p-3 w-full focus:outline-none focus:border-gray-600 transition-colors"
-          />
-          {errors.inputVariable && (
-            <p className="text-red-400 text-sm mt-1">{errors.inputVariable}</p>
-          )}
-          <p className="text-xs text-gray-500 mt-3">
-            This will be available as{" "}
-            <code className="bg-gray-900 px-2 py-1 rounded text-gray-300">{`{{${inputVariable}}}`}</code>{" "}
-            in your prompts
-          </p>
-        </div>
-
-        <div className="mb-8 p-6 bg-gray-800 border border-gray-700 rounded-xl">
-          <h3 className="text-xl font-semibold mb-4 text-white flex items-center gap-2">
-            <span className="bg-gray-700 text-white w-7 h-7 rounded-full flex items-center justify-center text-sm">
-              2
-            </span>
-            Questions / Prompts
-          </h3>
-          <p className="text-sm text-gray-400 mb-4">
-            Add the questions or instructions for the AI to process sequentially
-          </p>
-
-          {questions.map((question, index) => (
-            <div key={question.id} className="mb-4">
-              <div className="flex items-start gap-2">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-400 mb-2">
-                    Question {index + 1}
-                  </label>
+          <Section step="2" title="Prompts" hint="Each prompt runs in order and sees the output of the one before it.">
+            <div className="space-y-4">
+              {questions.map((question, index) => (
+                <div key={question.id}>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label htmlFor={`prompt-${question.id}`} className="field-label !mb-0">
+                      Prompt {index + 1}
+                    </label>
+                    {questions.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => deleteQuestion(question.id)}
+                        className="btn btn-ghost btn-sm text-sand-400"
+                        aria-label={`Remove prompt ${index + 1}`}
+                      >
+                        <TrashIcon width={14} height={14} />
+                        Remove
+                      </button>
+                    )}
+                  </div>
                   <textarea
-                    placeholder={`e.g., Write a ${
+                    id={`prompt-${question.id}`}
+                    placeholder={
                       index === 0
-                        ? "brief introduction"
-                        : "detailed explanation"
-                    } about the ${inputVariable}`}
-                    value={question.text}
-                    onChange={(e) =>
-                      updateQuestion(question.id, e.target.value)
+                        ? `Write a brief introduction to {{${inputVariable || "topic"}}}`
+                        : "Expand the previous answer into three key points"
                     }
-                    className="border border-gray-700 bg-gray-900 text-white rounded-lg p-3 w-full h-24 text-sm focus:outline-none focus:border-gray-600 transition-colors"
+                    value={question.text}
+                    onChange={(e) => updateQuestion(question.id, e.target.value)}
+                    rows={3}
+                    className="field"
                   />
                 </div>
-                {questions.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => deleteQuestion(question.id)}
-                    className="mt-7 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 text-sm transition-colors"
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
+              ))}
             </div>
-          ))}
+            {errors.questionText && <p className="mt-2 text-sm text-red-300">{errors.questionText}</p>}
+            <button type="button" onClick={addQuestion} className="btn btn-secondary mt-4">
+              <PlusIcon width={14} height={14} />
+              Add prompt
+            </button>
+          </Section>
 
-          {errors.questions && (
-            <p className="text-red-400 text-sm mb-2">{errors.questions}</p>
-          )}
-          {errors.questionText && (
-            <p className="text-red-400 text-sm mb-2">{errors.questionText}</p>
-          )}
-
-          <button
-            type="button"
-            onClick={addQuestion}
-            className="mt-3 px-5 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 text-sm font-medium transition-colors"
-          >
-            + Add Another Question
-          </button>
+          <Section step="3" title="Output format" hint="How the final result is laid out.">
+            <textarea
+              aria-label="Output format"
+              value={outputFormat}
+              onChange={(e) => setOutputFormat(e.target.value)}
+              rows={4}
+              className="field font-mono text-sm"
+            />
+            {errors.outputFormat && <p className="mt-1.5 text-sm text-red-300">{errors.outputFormat}</p>}
+            <p className="mt-3 text-xs text-sand-500">
+              <code className="rounded bg-ink-800 px-1.5 py-0.5 font-mono text-ember-300">{"{{previousContext}}"}</code>{" "}
+              is replaced with the output of the last prompt.
+            </p>
+          </Section>
         </div>
 
-        <div className="mb-8 p-6 bg-gray-800 border border-gray-700 rounded-xl">
-          <h3 className="text-xl font-semibold mb-4 text-white flex items-center gap-2">
-            <span className="bg-gray-700 text-white w-7 h-7 rounded-full flex items-center justify-center text-sm">
-              3
-            </span>
-            Output Format
-          </h3>
-          <p className="text-sm text-gray-400 mb-4">
-            How should the final output be formatted?
+        <aside className="card p-6 lg:sticky lg:top-24">
+          <p className="eyebrow">Preview</p>
+          <p className="mt-2 truncate font-display text-lg font-semibold tracking-tight">
+            {title || "Untitled workflow"}
           </p>
-          <textarea
-            placeholder="e.g., Final Summary:&#10;&#10;{{previousContext}}"
-            value={outputFormat}
-            onChange={(e) => setOutputFormat(e.target.value)}
-            className="border border-gray-700 bg-gray-900 text-white rounded-lg p-3 w-full h-24 text-sm font-mono focus:outline-none focus:border-gray-600 transition-colors"
-          />
-          {errors.outputFormat && (
-            <p className="text-red-400 text-sm mt-1">{errors.outputFormat}</p>
-          )}
-          <p className="text-xs text-gray-500 mt-3">
-            Use{" "}
-            <code className="bg-gray-900 px-2 py-1 rounded text-gray-300">
-              {"{{previousContext}}"}
-            </code>{" "}
-            to include all previous outputs
-          </p>
-        </div>
-
-        <div className="mb-8 p-6 bg-gray-800 border border-gray-700 rounded-xl">
-          <h4 className="text-sm font-semibold text-gray-300 mb-3">
-            Chain Preview:
-          </h4>
-          <div className="flex items-center gap-2 text-xs text-gray-400 overflow-x-auto">
-            <div className="px-3 py-2 bg-gray-900 rounded-lg border border-gray-700 whitespace-nowrap">
-              Input: {inputVariable}
-            </div>
-            <span>→</span>
+          <ol className="mt-5">
+            <PreviewStep type="input" title={`{{${inputVariable || "…"}}}`} />
             {questions.map((q, i) => (
-              <React.Fragment key={q.id}>
-                <div className="px-3 py-2 bg-gray-900 rounded-lg border border-gray-700 whitespace-nowrap">
-                  Q{i + 1}
-                </div>
-                <span>→</span>
-              </React.Fragment>
+              <PreviewStep key={q.id} type="llm" title={q.text.trim() || `Prompt ${i + 1}`} />
             ))}
-            <div className="px-3 py-2 bg-gray-900 rounded-lg border border-gray-700 whitespace-nowrap">
-              Output
-            </div>
-          </div>
-        </div>
-
-        <button
-          onClick={handleSave}
-          disabled={isPending}
-          className="block w-full py-4 bg-white text-black font-semibold rounded-xl hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-        >
-          {isPending ? "Creating Chain..." : "Create Chain"}
-        </button>
-      </div>
-    </div>
+            <PreviewStep type="output" title="Final result" last />
+          </ol>
+          <button type="submit" disabled={isPending} className="btn btn-primary btn-lg mt-6 w-full">
+            {isPending && <SpinnerIcon />}
+            {isPending ? "Creating…" : "Create workflow"}
+          </button>
+          <Link to="/chains" className="btn btn-ghost mt-2 w-full">
+            Cancel
+          </Link>
+        </aside>
+      </form>
+    </AppShell>
   );
 }

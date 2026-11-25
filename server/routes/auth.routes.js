@@ -10,6 +10,11 @@ const authRouter = express.Router()
 authRouter.post('/signup', signUp)
 authRouter.post('/login', logIn)
 
+authRouter.post('/logout', (req, res) => {
+  res.clearCookie('token', { httpOnly: true, sameSite: 'none', secure: true })
+  res.json({ success: true })
+})
+
 authRouter.get('/me', isAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.userId },

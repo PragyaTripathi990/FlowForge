@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
-export async function callGemini(prompt, model = "gemini-2.0-flash") {
+export async function callGemini(prompt, model = "gemini-3.8-flash") {
   try {
     const generativeModel = genAI.getGenerativeModel({ model });
     const result = await generativeModel.generateContent(prompt);
@@ -15,7 +15,7 @@ export async function callGemini(prompt, model = "gemini-2.0-flash") {
   }
 }
 
-export async function callGeminiWithRetry(prompt, model = "gemini-2.0-flash", maxRetries = 3) {
+export async function callGeminiWithRetry(prompt, model = "gemini-3.8-flash", maxRetries = 3) {
   let lastError;
 
   for (let i = 0; i < maxRetries; i++) {
