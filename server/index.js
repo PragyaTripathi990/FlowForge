@@ -8,6 +8,9 @@ import executionRouter from "./routes/execution.routes.js";
 import chainRunnerRoutes from "./src/routes/chainRunnerRoutes.js"
 import authRouter from "./routes/auth.routes.js";
 import cookieParser from "cookie-parser";
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const app = express()
 
@@ -33,6 +36,19 @@ app.use('/api', chainRunnerRoutes);
 app.use('/api/auth', authRouter)
 
 const PORT = process.env.PORT || 5000
+
+app.get('/healthz', (req, res) => res.json({ ok: true }))
+
+// In production the built frontend (client/dist) is served by this same
+// server, so the app and its API share one origin.
+const clientDist = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'client', 'dist')
+if (fs.existsSync(path.join(clientDist, 'index.html'))) {
+  app.use(express.static(clientDist))
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api')) return next()
+    res.sendFile(path.join(clientDist, 'index.html'))
+  })
+}
 
 app.get('/', (req,res) =>{
     res.send("Hello world")
